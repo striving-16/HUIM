@@ -23,9 +23,14 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-RESULTS_FOLDER = os.path.join(BASE_DIR, 'results')
 DATA_FOLDER = os.path.join(BASE_DIR, 'data')
+
+if os.environ.get('VERCEL'):
+    UPLOAD_FOLDER = '/tmp/uploads'
+    RESULTS_FOLDER = '/tmp/results'
+else:
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    RESULTS_FOLDER = os.path.join(BASE_DIR, 'results')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
