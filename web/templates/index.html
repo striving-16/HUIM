@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HUIM Dashboard — High Utility Itemset Mining</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">HUIM<span class="logo-spark">Spark</span></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#section-data" class="nav-item active" data-section="data">
+        <span class="nav-icon">📂</span> Données
+      </a>
+      <a href="#section-config" class="nav-item" data-section="config">
+        <span class="nav-icon">⚙️</span> Configuration
+      </a>
+      <a href="#section-results" class="nav-item" data-section="results">
+        <span class="nav-icon">🌟</span> Résultats
+      </a>
+      <a href="#section-log" class="nav-item" data-section="log">
+        <span class="nav-icon">📋</span> Log
+      </a>
+    </nav>
+
+    <div class="sidebar-info">
+      <div class="info-badge">HUI-Miner</div>
+      <p>Algorithme basé sur les Utility-Lists avec élagage DFS</p>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1>Mining Dashboard</h1>
+        <span class="topbar-sub">Trouvez les combinaisons de produits les plus rentables</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="status-dot" id="status-dot"></div>
+        <span class="status-text" id="status-text">Prêt</span>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ── SECTION 1: DONNÉES ── -->
+      <section id="section-data" class="section">
+        <div class="section-header">
+          <h2>Source de données</h2>
+          <span class="section-desc">Chargez vos tickets de caisse</span>
+        </div>
+
+        <div class="cards-row">
+          <!-- Upload Card -->
+          <div class="card card-upload" id="upload-card">
+            <div class="card-label">Importer un fichier</div>
+            <div class="drop-zone" id="drop-zone">
+              <div class="drop-icon">📁</div>
+              <p class="drop-text">Glissez votre fichier <code>.txt</code> ici</p>
+              <p class="drop-sub">ou</p>
+              <label class="btn btn-outline" for="file-input">Parcourir</label>
+              <input type="file" id="file-input" accept=".txt,.csv" hidden>
+            </div>
+            <div class="format-hint">
+              <strong>Format :</strong> <code>item:quantité:profit item2:qté:profit :total</code><br>
+              <span>Exemple : <code>Pain:1:1 Caviar:1:50 :51</code></span>
+            </div>
+          </div>
+
+          <!-- Samples Card -->
+          <div class="card">
+            <div class="card-label">Datasets d'exemple</div>
+            <div id="sample-list" class="sample-list">
+              <div class="loading-pulse">Chargement…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dataset Preview -->
+        <div class="card" id="preview-card" style="display:none">
+          <div class="card-label">Aperçu du dataset chargé</div>
+          <div class="dataset-stats" id="dataset-stats"></div>
+          <div class="preview-table-wrap">
+            <table class="preview-table" id="preview-table">
+              <thead><tr><th>#</th><th>Articles</th><th>Utilité totale</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SECTION 2: CONFIG ── -->
+      <section id="section-config" class="section">
+        <div class="section-header">
+          <h2>Configuration</h2>
+          <span class="section-desc">Paramètres du mining</span>
+        </div>
+
+        <div class="cards-row">
+          <div class="card">
+            <div class="card-label">Seuil minimum d'utilité (MinUtil)</div>
+            <div class="slider-wrap">
+              <input type="range" id="min-util-slider" min="1" max="200" value="5" step="1" class="slider">
+              <div class="slider-value-wrap">
+                <input type="number" id="min-util-input" value="5" min="0.1" step="0.1" class="value-input">
+                <span class="value-unit">€</span>
+              </div>
+            </div>
+            <div class="slider-labels">
+              <span>Sensible (1€)</span>
+              <span>Sélectif (200€)</span>
+            </div>
+            <p class="param-hint">
+              Seules les combinaisons avec un profit total ≥ <strong id="hint-minutil">5€</strong> seront retenues.
+              Un seuil bas trouve plus d'itemsets, un seuil élevé ne garde que les vrais moteurs de profit.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-label">Mode d'exécution</div>
+            <div class="mode-selector">
+              <label class="mode-option selected" id="mode-local">
+                <input type="radio" name="mode" value="local" checked hidden>
+                <span class="mode-icon">💻</span>
+                <span class="mode-name">Local</span>
+                <span class="mode-desc">Sans Spark, rapide pour les petits datasets</span>
+              </label>
+              <label class="mode-option" id="mode-spark">
+                <input type="radio" name="mode" value="spark" hidden>
+                <span class="mode-icon">⚡</span>
+                <span class="mode-name">Spark</span>
+                <span class="mode-desc">Distribué, pour les gros volumes</span>
+              </label>
+            </div>
+
+            <button class="btn btn-primary" id="run-btn" disabled>
+              <span class="btn-icon">▶</span> Lancer le Mining
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SECTION 3: RÉSULTATS ── -->
+      <section id="section-results" class="section">
+        <div class="section-header">
+          <h2>Résultats</h2>
+          <span class="section-desc">High Utility Itemsets découverts</span>
+          <button class="btn btn-outline btn-sm" id="export-btn" style="display:none">⬇ Exporter CSV</button>
+        </div>
+
+        <!-- Loading state -->
+        <div id="mining-loading" style="display:none" class="loading-state">
+          <div class="spinner"></div>
+          <p>Mining en cours…</p>
+          <div class="log-live" id="log-live"></div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="results-empty" class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <p>Chargez un dataset et lancez le mining pour voir les résultats ici.</p>
+        </div>
+
+        <!-- Results content -->
+        <div id="results-content" style="display:none">
+
+          <!-- KPI row -->
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-value" id="kpi-total">—</div>
+              <div class="kpi-label">HUI trouvés</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-value" id="kpi-max">—</div>
+              <div class="kpi-label">Utilité max</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-value" id="kpi-avg">—</div>
+              <div class="kpi-label">Utilité moyenne</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-value" id="kpi-time">—</div>
+              <div class="kpi-label">Temps d'exécution</div>
+            </div>
+          </div>
+
+          <!-- Charts row -->
+          <div class="cards-row">
+            <div class="card chart-card">
+              <div class="card-label">Top 10 itemsets par utilité</div>
+              <canvas id="chart-bar"></canvas>
+            </div>
+            <div class="card chart-card">
+              <div class="card-label">Distribution par taille</div>
+              <canvas id="chart-doughnut"></canvas>
+            </div>
+          </div>
+
+          <!-- Results table -->
+          <div class="card">
+            <div class="card-label">Tous les itemsets (<span id="results-count">0</span>)</div>
+            <div class="table-controls">
+              <input type="text" id="table-search" placeholder="Filtrer par nom…" class="search-input">
+              <select id="table-sort" class="sort-select">
+                <option value="utility-desc">Utilité ↓</option>
+                <option value="utility-asc">Utilité ↑</option>
+                <option value="size-desc">Taille ↓</option>
+                <option value="size-asc">Taille ↑</option>
+              </select>
+            </div>
+            <div class="results-table-wrap">
+              <table class="results-table" id="results-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Itemset</th>
+                    <th>Utilité (€)</th>
+                    <th>Taille</th>
+                    <th>Transactions</th>
+                    <th>Barre</th>
+                  </tr>
+                </thead>
+                <tbody id="results-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SECTION 4: LOG ── -->
+      <section id="section-log" class="section">
+        <div class="section-header">
+          <h2>Log d'exécution</h2>
+          <span class="section-desc">Détail des étapes de l'algorithme</span>
+          <button class="btn btn-outline btn-sm" id="clear-log-btn">Effacer</button>
+        </div>
+        <div class="card">
+          <div class="log-terminal" id="log-terminal">
+            <div class="log-line log-info">Prêt. Chargez un dataset et lancez le mining.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

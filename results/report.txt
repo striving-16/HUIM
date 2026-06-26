@@ -1,0 +1,42 @@
+RAPPORT HUIM — High Utility Itemset Mining
+Généré le : 2026-06-26 01:45:19
+Seuil MinUtil : 5.0€
+Temps d'exécution : 0.004s
+Nombre de HUI : 7
+============================================================
+
+#1 {Beurre, Caviar, Oeufs}
+   Utilité totale : 53.00€
+   Taille : 3 article(s)
+   Transactions : 1
+
+#2 {Caviar, Oeufs}
+   Utilité totale : 53.00€
+   Taille : 2 article(s)
+   Transactions : 1
+
+#3 {Beurre, Caviar}
+   Utilité totale : 52.00€
+   Taille : 2 article(s)
+   Transactions : 1
+
+#4 {Caviar}
+   Utilité totale : 50.00€
+   Taille : 1 article(s)
+   Transactions : 1
+
+#5 {Oeufs}
+   Utilité totale : 9.00€
+   Taille : 1 article(s)
+   Transactions : 3
+
+#6 {Oeufs, Pain}
+   Utilité totale : 8.00€
+   Taille : 2 article(s)
+   Transactions : 2
+
+#7 {Beurre, Oeufs}
+   Utilité totale : 5.00€
+   Taille : 2 article(s)
+   Transactions : 1
+

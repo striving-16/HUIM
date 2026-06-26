@@ -1,0 +1,8 @@
+itemset,utility_eur,size,items,min_util
+"{Beurre, Caviar, Oeufs}",53.00,3,"Beurre, Caviar, Oeufs",5.0
+"{Caviar, Oeufs}",53.00,2,"Caviar, Oeufs",5.0
+"{Beurre, Caviar}",52.00,2,"Beurre, Caviar",5.0
+{Caviar},50.00,1,Caviar,5.0
+{Oeufs},9.00,1,Oeufs,5.0
+"{Oeufs, Pain}",8.00,2,"Oeufs, Pain",5.0
+"{Beurre, Oeufs}",5.00,2,"Beurre, Oeufs",5.0

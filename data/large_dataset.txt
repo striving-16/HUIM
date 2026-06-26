@@ -1,0 +1,22 @@
+# Larger dataset for performance testing
+# Format: item:quantity:profit item:quantity:profit ... : total_utility
+Pain:2:1 Lait:1:0.8 Beurre:1:2 :5.6
+Oeufs:3:3 Pain:1:1 Fromage:1:4 :16
+Caviar:1:50 Champagne:1:30 Foie_Gras:1:25 :105
+Pain:1:1 Beurre:2:2 Confiture:1:1.5 :7.5
+Lait:2:0.8 Cereales:1:2 Banane:3:0.5 :5.1
+Caviar:2:50 Saumon:1:15 Citron:2:0.3 :115.6
+Fromage:2:4 Vin:1:8 Pain:1:1 :17
+Oeufs:6:3 Beurre:1:2 Farine:1:1 :21
+Chocolat:3:3 Lait:2:0.8 Sucre:1:0.5 :11.1
+Caviar:1:50 Blinis:2:2 Creme:1:1.5 :55.5
+Pain:3:1 Jambon:2:3 Moutarde:1:1 :10
+Saumon:2:15 Citron:1:0.3 Aneth:1:0.5 :31.1
+Vin:2:8 Fromage:3:4 Raisin:1:1.5 :29.5
+Oeufs:2:3 Lait:1:0.8 Farine:2:1 :9.8
+Caviar:1:50 Champagne:2:30 :110
+Pain:4:1 Beurre:2:2 Miel:1:2.5 :10.5
+Chocolat:5:3 Sucre:2:0.5 Beurre:1:2 :19
+Saumon:1:15 Avocat:2:1.5 Citron:1:0.3 :18.3
+Oeufs:4:3 Jambon:2:3 Fromage:1:4 :22
+Caviar:3:50 Foie_Gras:2:25 Champagne:1:30 :230
