@@ -30,7 +30,7 @@ def make_sample_transactions():
     return [
         Transaction(0, [Item("Pain", 1, 1), Item("Beurre", 1, 2)], 3.0),
         Transaction(1, [Item("Pain", 1, 1), Item("Lait", 1, 1), Item("Oeufs", 1, 3)], 5.0),
-        Transaction(2, [Item("Beurre", 1, 2), Item("Oeufs", 1, 3), Item("Caviar", 1, 50)], 55.0),
+        Transaction(2, [Item("Beurre", 1, 2), Item("Oeufs", 1, 3), Item("Dattes", 1, 50)], 55.0),
         Transaction(3, [Item("Pain", 1, 1), Item("Oeufs", 1, 3)], 4.0),
     ]
 
@@ -42,7 +42,7 @@ def make_sample_transactions():
 class TestItem(unittest.TestCase):
 
     def test_item_utility(self):
-        item = Item("Caviar", 2, 50.0)
+        item = Item("Dattes", 2, 50.0)
         self.assertEqual(item.utility, 100.0)
 
     def test_item_utility_single(self):
@@ -55,12 +55,12 @@ class TestTransaction(unittest.TestCase):
     def setUp(self):
         self.t = Transaction(
             0,
-            [Item("Pain", 1, 1), Item("Beurre", 1, 2), Item("Caviar", 1, 50)],
+            [Item("Pain", 1, 1), Item("Beurre", 1, 2), Item("Dattes", 1, 50)],
             53.0
         )
 
     def test_get_item_found(self):
-        item = self.t.get_item("Caviar")
+        item = self.t.get_item("Dattes")
         self.assertIsNotNone(item)
         self.assertEqual(item.profit, 50.0)
 
@@ -69,11 +69,11 @@ class TestTransaction(unittest.TestCase):
         self.assertIsNone(item)
 
     def test_get_item_utility(self):
-        self.assertEqual(self.t.get_item_utility("Caviar"), 50.0)
+        self.assertEqual(self.t.get_item_utility("Dattes"), 50.0)
         self.assertEqual(self.t.get_item_utility("Absent"), 0.0)
 
     def test_contains_all(self):
-        self.assertTrue(self.t.contains_all(["Pain", "Caviar"]))
+        self.assertTrue(self.t.contains_all(["Pain", "Dattes"]))
         self.assertFalse(self.t.contains_all(["Pain", "Lait"]))
 
 
@@ -81,7 +81,7 @@ class TestUtilityList(unittest.TestCase):
 
     def test_sum_iutils(self):
         ul = UtilityList(
-            itemset=frozenset(["Caviar"]),
+            itemset=frozenset(["Dattes"]),
             entries=[
                 UtilityEntry(0, 50.0, 5.0),
                 UtilityEntry(1, 50.0, 0.0),
@@ -91,22 +91,22 @@ class TestUtilityList(unittest.TestCase):
 
     def test_upper_bound(self):
         ul = UtilityList(
-            itemset=frozenset(["Caviar"]),
+            itemset=frozenset(["Dattes"]),
             entries=[UtilityEntry(0, 50.0, 5.0)]
         )
         self.assertEqual(ul.upper_bound, 55.0)
 
     def test_is_high_utility(self):
         ul = UtilityList(
-            itemset=frozenset(["Caviar"]),
+            itemset=frozenset(["Dattes"]),
             entries=[UtilityEntry(0, 50.0, 5.0)]
         )
         self.assertTrue(ul.is_high_utility(5.0))
         self.assertFalse(ul.is_high_utility(100.0))
 
     def test_itemset_name(self):
-        ul = UtilityList(itemset=frozenset(["Caviar", "Oeufs"]), entries=[])
-        self.assertEqual(ul.itemset_name, "{Caviar, Oeufs}")
+        ul = UtilityList(itemset=frozenset(["Dattes", "Oeufs"]), entries=[])
+        self.assertEqual(ul.itemset_name, "{Dattes, Oeufs}")
 
 
 # ─────────────────────────────────────────────
@@ -119,13 +119,13 @@ class TestTWUComputation(unittest.TestCase):
         self.transactions = make_sample_transactions()
 
     def test_twu_caviar(self):
-        """Caviar appears only in T2 (total utility 55€) → TWU = 55€"""
+        """Dattes appears only in T2 (total utility 55€) → TWU = 55€"""
         twu_map = {}
         for t in self.transactions:
             for item in t.items:
                 twu_map[item.name] = twu_map.get(item.name, 0.0) + t.total_utility
 
-        self.assertAlmostEqual(twu_map["Caviar"], 55.0)
+        self.assertAlmostEqual(twu_map["Dattes"], 55.0)
 
     def test_twu_pain(self):
         """Pain appears in T0(3€), T1(5€), T3(4€) → TWU = 12€"""
@@ -137,10 +137,10 @@ class TestTWUComputation(unittest.TestCase):
         self.assertAlmostEqual(twu_map["Pain"], 12.0)
 
     def test_filter_by_min_util(self):
-        """With MinUtil=5, Caviar(55) and Oeufs(64) should pass."""
-        twu_map = {"Caviar": 55.0, "Oeufs": 64.0, "Pain": 12.0, "Beurre": 58.0, "Lait": 5.0}
+        """With MinUtil=5, Dattes(55) and Oeufs(64) should pass."""
+        twu_map = {"Dattes": 55.0, "Oeufs": 64.0, "Pain": 12.0, "Beurre": 58.0, "Lait": 5.0}
         promising = filter_by_min_util(twu_map, 5.0)
-        self.assertIn("Caviar", promising)
+        self.assertIn("Dattes", promising)
         self.assertIn("Oeufs", promising)
 
 
@@ -150,9 +150,9 @@ class TestUtilityListBuild(unittest.TestCase):
         self.transactions = make_sample_transactions()
 
     def test_caviar_utility_list(self):
-        """Caviar only appears in T2. Its utility is 50€."""
+        """Dattes only appears in T2. Its utility is 50€."""
         ul = build_single_item_utility_list(
-            "Caviar", self.transactions, ["Beurre", "Oeufs", "Caviar"]
+            "Dattes", self.transactions, ["Beurre", "Oeufs", "Dattes"]
         )
         self.assertEqual(len(ul.entries), 1)
         self.assertEqual(ul.entries[0].transaction_id, 2)
@@ -161,7 +161,7 @@ class TestUtilityListBuild(unittest.TestCase):
     def test_oeufs_utility_list(self):
         """Oeufs appears in T1, T2, T3."""
         ul = build_single_item_utility_list(
-            "Oeufs", self.transactions, ["Beurre", "Oeufs", "Caviar"]
+            "Oeufs", self.transactions, ["Beurre", "Oeufs", "Dattes"]
         )
         self.assertEqual(len(ul.entries), 3)
         tids = [e.transaction_id for e in ul.entries]
@@ -213,18 +213,18 @@ class TestHUIMinerEndToEnd(unittest.TestCase):
     def test_mine_with_min_util_5(self):
         """
         With MinUtil=5, from the PDF example:
-        - {Caviar} has utility 50€ → HUI ✓
+        - {Dattes} has utility 50€ → HUI ✓
         - {Oeufs} has utility 9€ → HUI ✓
-        - {Caviar, Oeufs} → HUI ✓
+        - {Dattes, Oeufs} → HUI ✓
         """
         miner = HUIMiner(min_util=5.0, mode='local')
         results = miner.mine(self.transactions)
 
         self.assertGreater(len(results), 0)
 
-        # Check Caviar is found
-        found_caviar = any("Caviar" in ul.itemset_name and len(ul.itemset) == 1 for ul in results)
-        self.assertTrue(found_caviar, "Caviar should be a HUI")
+        # Check Dattes is found
+        found_caviar = any("Dattes" in ul.itemset_name and len(ul.itemset) == 1 for ul in results)
+        self.assertTrue(found_caviar, "Dattes should be a HUI")
 
     def test_mine_with_very_high_threshold(self):
         """With MinUtil=1000, nothing should be found."""
@@ -233,11 +233,11 @@ class TestHUIMinerEndToEnd(unittest.TestCase):
         self.assertEqual(len(results), 0)
 
     def test_mine_caviar_utility_is_50(self):
-        """The utility of {Caviar} alone should be exactly 50€."""
+        """The utility of {Dattes} alone should be exactly 50€."""
         miner = HUIMiner(min_util=5.0, mode='local')
         results = miner.mine(self.transactions)
 
-        caviar_huis = [ul for ul in results if ul.itemset == frozenset(["Caviar"])]
+        caviar_huis = [ul for ul in results if ul.itemset == frozenset(["Dattes"])]
         self.assertEqual(len(caviar_huis), 1)
         self.assertAlmostEqual(caviar_huis[0].sum_iutils, 50.0)
 

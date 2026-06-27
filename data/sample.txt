@@ -3,7 +3,7 @@
 Pain:1:1 Beurre:1:2 :3
 # Ticket 2: Pain, Lait, Oeufs
 Pain:1:1 Lait:1:1 Oeufs:1:3 :5
-# Ticket 3: Beurre, Oeufs, Caviar
-Beurre:1:2 Oeufs:1:3 Caviar:1:50 :55
+# Ticket 3: Beurre, Oeufs, Dattes
+Beurre:1:2 Oeufs:1:3 Dattes:1:50 :55
 # Ticket 4: Pain, Oeufs
 Pain:1:1 Oeufs:1:3 :4
