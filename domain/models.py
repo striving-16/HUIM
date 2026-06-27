@@ -20,7 +20,7 @@ class Item:
         return self.quantity * self.profit
 
     def __repr__(self):
-        return f"Item({self.name}, qty={self.quantity}, profit={self.profit}€)"
+        return f"Item({self.name}, qty={self.quantity}, profit={self.profit}MRU)"
 
     def __hash__(self):
         return hash(self.name)
@@ -81,8 +81,8 @@ class Transaction:
         return all(name in transaction_item_names for name in item_names)
 
     def __repr__(self):
-        items_str = ", ".join(f"{item.name}({item.utility}€)" for item in self.items)
-        return f"Transaction(id={self.transaction_id}, [{items_str}], total={self.total_utility}€)"
+        items_str = ", ".join(f"{item.name}({item.utility}MRU)" for item in self.items)
+        return f"Transaction(id={self.transaction_id}, [{items_str}], total={self.total_utility}MRU)"
 
 
 @dataclass
@@ -102,7 +102,7 @@ class UtilityEntry:
 
     def __repr__(self):
         return (f"Entry(tid={self.transaction_id}, "
-                f"iutil={self.item_utility}€, rutil={self.remaining_utility}€)")
+                f"iutil={self.item_utility}MRU, rutil={self.remaining_utility}MRU)")
 
 
 @dataclass
@@ -149,5 +149,5 @@ class UtilityList:
 
     def __repr__(self):
         return (f"UtilityList({self.itemset_name}, "
-                f"iutil={self.sum_iutils:.2f}€, rutil={self.sum_rutils:.2f}€, "
+                f"iutil={self.sum_iutils:.2f}MRU, rutil={self.sum_rutils:.2f}MRU, "
                 f"entries={len(self.entries)})")

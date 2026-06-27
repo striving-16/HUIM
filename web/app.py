@@ -189,7 +189,7 @@ def export_results():
     import io
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Rang', 'Itemset', 'Utilité (€)', 'Taille', 'Transactions'])
+    writer.writerow(['Rang', 'Itemset', 'Utilité (MRU)', 'Taille', 'Transactions'])
     for i, item in enumerate(itemsets, 1):
         writer.writerow([i, item['name'], item['utility'], item['size'], item['transactions']])
 

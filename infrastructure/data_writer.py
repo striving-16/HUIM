@@ -17,7 +17,7 @@ def print_results(results: List[UtilityList], min_util: float, elapsed_time: flo
     print("\n" + "═" * 60)
     print("  🌟 RÉSULTATS — High Utility Itemsets Découverts")
     print("═" * 60)
-    print(f"  Seuil MinUtil : {min_util}€")
+    print(f"  Seuil MinUtil : {min_util}MRU")
     if elapsed_time:
         print(f"  Temps d'exécution : {elapsed_time:.3f}s")
     print(f"  Nombre de HUI trouvés : {len(results)}")
@@ -28,10 +28,10 @@ def print_results(results: List[UtilityList], min_util: float, elapsed_time: flo
     else:
         # Sort by utility descending
         sorted_results = sorted(results, key=lambda ul: ul.sum_iutils, reverse=True)
-        print(f"  {'Itemset':<35} {'Utilité (€)':>12}")
+        print(f"  {'Itemset':<35} {'Utilité (MRU)':>12}")
         print("─" * 60)
         for ul in sorted_results:
-            print(f"  {ul.itemset_name:<35} {ul.sum_iutils:>12.2f}€")
+            print(f"  {ul.itemset_name:<35} {ul.sum_iutils:>12.2f}MRU")
 
     print("═" * 60 + "\n")
 
@@ -71,7 +71,7 @@ def save_results_txt(results: List[UtilityList], output_path: str, min_util: flo
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write("RAPPORT HUIM — High Utility Itemset Mining\n")
         f.write(f"Généré le : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Seuil MinUtil : {min_util}€\n")
+        f.write(f"Seuil MinUtil : {min_util}MRU\n")
         if elapsed_time:
             f.write(f"Temps d'exécution : {elapsed_time:.3f}s\n")
         f.write(f"Nombre de HUI : {len(results)}\n")
@@ -79,7 +79,7 @@ def save_results_txt(results: List[UtilityList], output_path: str, min_util: flo
 
         for rank, ul in enumerate(sorted_results, 1):
             f.write(f"#{rank} {ul.itemset_name}\n")
-            f.write(f"   Utilité totale : {ul.sum_iutils:.2f}€\n")
+            f.write(f"   Utilité totale : {ul.sum_iutils:.2f}MRU\n")
             f.write(f"   Taille : {len(ul.itemset)} article(s)\n")
             f.write(f"   Transactions : {len(ul.entries)}\n\n")
 

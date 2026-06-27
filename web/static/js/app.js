@@ -175,13 +175,13 @@ function showDatasetInfo(transactions, items, name, preview) {
     tbody.innerHTML = '';
     preview.forEach(t => {
       const itemsHtml = t.items.map(i =>
-        `<span class="item-tag">${i.name} <span class="profit">+${i.profit}€</span></span>`
+        `<span class="item-tag">${i.name} <span class="profit">+${i.profit} MRU</span></span>`
       ).join('');
       tbody.innerHTML += `
         <tr>
           <td><span class="rank-num">#${t.id}</span></td>
           <td>${itemsHtml}</td>
-          <td><span class="utility-val">${t.total}€</span></td>
+          <td><span class="utility-val">${t.total}MRU</span></td>
         </tr>
       `;
     });
@@ -202,7 +202,7 @@ function setupSlider() {
   function update(val) {
     slider.value = val;
     input.value = val;
-    hint.textContent = val + '€';
+    hint.textContent = val + 'MRU';
   }
 
   slider.addEventListener('input', () => update(slider.value));
@@ -251,7 +251,7 @@ async function runMining() {
 
   setStatus('running', 'Mining en cours…');
   logLine(`─── Mining démarré ───`, 'step');
-  logLine(`Mode: ${mode.toUpperCase()} | MinUtil: ${minUtil}€ | Fichier: ${state.selectedFile.name}`, 'info');
+  logLine(`Mode: ${mode.toUpperCase()} | MinUtil: ${minUtil}MRU | Fichier: ${state.selectedFile.name}`, 'info');
 
   try {
     const res = await fetch('/api/mine', {
@@ -323,8 +323,8 @@ function resetRunBtn() {
 function renderKPIs(data) {
   const s = data.stats;
   $('kpi-total').textContent = s.count || 0;
-  $('kpi-max').textContent = s.max_utility ? s.max_utility.toFixed(2) + '€' : '—';
-  $('kpi-avg').textContent = s.avg_utility ? s.avg_utility.toFixed(2) + '€' : '—';
+  $('kpi-max').textContent = s.max_utility ? s.max_utility.toFixed(2) + 'MRU' : '—';
+  $('kpi-avg').textContent = s.avg_utility ? s.avg_utility.toFixed(2) + 'MRU' : '—';
   $('kpi-time').textContent = data.elapsed + 's';
 }
 
@@ -347,7 +347,7 @@ function renderBarChart(itemsets) {
     data: {
       labels,
       datasets: [{
-        label: 'Utilité (€)',
+        label: 'Utilité (MRU)',
         data: values,
         backgroundColor: values.map((_, i) => `hsl(${168 - i * 8}, 80%, ${50 - i * 2}%)`),
         borderRadius: 6,
@@ -361,7 +361,7 @@ function renderBarChart(itemsets) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => `${ctx.parsed.y.toFixed(2)}€`
+            label: ctx => `${ctx.parsed.y.toFixed(2)}MRU`
           }
         }
       },
@@ -371,7 +371,7 @@ function renderBarChart(itemsets) {
           grid: { color: '#21262d' },
         },
         y: {
-          ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v + '€' },
+          ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v + 'MRU' },
           grid: { color: '#21262d' },
         }
       }
@@ -453,7 +453,7 @@ function renderTable(itemsets) {
       <tr>
         <td><span class="rank-num">${idx + 1}</span></td>
         <td><div class="itemset-cell">${chips}</div></td>
-        <td><span class="utility-val">${item.utility.toFixed(2)}€</span></td>
+        <td><span class="utility-val">${item.utility.toFixed(2)}MRU</span></td>
         <td><span class="size-badge">${item.size}</span></td>
         <td><span style="color:var(--text-muted);font-family:var(--font-mono)">${item.transactions}</span></td>
         <td>

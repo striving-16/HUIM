@@ -42,7 +42,7 @@ Exemples:
         '--min-util', '-u',
         type=float,
         default=5.0,
-        help='Seuil minimum d\'utilité MinUtil en € (défaut: 5.0)'
+        help='Seuil minimum d\'utilité MinUtil en MRU (défaut: 5.0)'
     )
     parser.add_argument(
         '--mode', '-m',
@@ -140,8 +140,8 @@ def main():
         print(f"   Items seuls  : {stats['single_items']}")
         print(f"   Paires       : {stats['pairs']}")
         print(f"   Plus grands  : {stats['larger']}")
-        print(f"   Utilité max  : {stats['max_utility']:.2f}€")
-        print(f"   Utilité moy  : {stats['avg_utility']:.2f}€")
+        print(f"   Utilité max  : {stats['max_utility']:.2f}MRU")
+        print(f"   Utilité moy  : {stats['avg_utility']:.2f}MRU")
 
     # ── Stop Spark ──
     if sc is not None:

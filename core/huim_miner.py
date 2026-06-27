@@ -72,7 +72,7 @@ class HUIMiner:
         """
         print(f"\n🚀 Démarrage HUIM-Miner")
         print(f"   Mode        : {self.mode.upper()}")
-        print(f"   MinUtil     : {self.min_util}€")
+        print(f"   MinUtil     : {self.min_util}MRU")
         print(f"   Transactions: {len(transactions)}")
         print()
 
@@ -88,7 +88,7 @@ class HUIMiner:
         self._stats['promising_items'] = len(promising_items)
 
         print(f"   Items analysés    : {len(twu_map)}")
-        print(f"   Items prometteurs : {len(promising_items)} (TWU ≥ {self.min_util}€)")
+        print(f"   Items prometteurs : {len(promising_items)} (TWU ≥ {self.min_util}MRU)")
         if promising_items:
             print(f"   Items retenus     : {', '.join(promising_items)}")
 
@@ -250,7 +250,7 @@ class HUIMiner:
             if is_high_utility_itemset(ul_px, self.min_util):
                 self.high_utility_itemsets.append(ul_px)
                 size = len(ul_px.itemset)
-                print(f"   ✨ HUI trouvé : {ul_px.itemset_name} → {ul_px.sum_iutils:.2f}€  (taille {size})")
+                print(f"   ✨ HUI trouvé : {ul_px.itemset_name} → {ul_px.sum_iutils:.2f}MRU  (taille {size})")
 
             # ── CHECK: Should we explore extensions? ──
             if not should_explore_extensions(ul_px, self.min_util):
