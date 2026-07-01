@@ -137,7 +137,7 @@ def results_to_dict(
             "itemset_name": ul.itemset_name,
             "utility": round(ul.sum_iutils, 4),
             "size": len(ul.itemset),
-            "transactions": len(ul.entries),
+            "transactions": ul.transaction_count,
         }
         for ul in sorted_results
     ]

@@ -27,7 +27,7 @@ for _stream in (sys.stdout, sys.stderr):
 # Make sure we can import from sibling directories
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.huim_miner import run_huim
+from core.huim_miner import run_huim, DatasetTooLargeError
 from infrastructure.data_writer import save_json_result, save_result_csv
 
 
@@ -115,6 +115,9 @@ def main():
     try:
         result = run_huim(args.data, min_util=args.min_util, mode=args.mode)
     except FileNotFoundError as e:
+        print(f"❌ {e}")
+        sys.exit(1)
+    except DatasetTooLargeError as e:
         print(f"❌ {e}")
         sys.exit(1)
 

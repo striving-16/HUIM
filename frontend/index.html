@@ -256,10 +256,11 @@
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
-  <!-- Backend API base URL. Override at deploy time (e.g. Vercel env-injected
-       config.js, or edit directly) to point at your Render backend URL. -->
+  <!-- Backend API base URL. Defaults to a local backend when opened from
+       localhost/file:// (dev/demo use), otherwise falls back to Render. -->
   <script>
-    window.HUIM_API_BASE = window.HUIM_API_BASE || "https://huim.onrender.com";
+    var isLocal = ["localhost", "127.0.0.1", ""].indexOf(window.location.hostname) !== -1;
+    window.HUIM_API_BASE = window.HUIM_API_BASE || (isLocal ? "http://localhost:8000" : "https://huim.onrender.com");
   </script>
   <script src="/static/js/app.js"></script>
 </body>

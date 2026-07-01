@@ -35,7 +35,7 @@ for _stream in (sys.stdout, sys.stderr):
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from core.huim_miner import run_huim  # noqa: E402
+from core.huim_miner import run_huim, DatasetTooLargeError  # noqa: E402
 
 ALLOWED_EXTENSIONS = {".txt", ".csv"}
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB — comfortably above a 100K-line dataset
@@ -128,6 +128,8 @@ def run_huim_endpoint(request: RunHuimRequest):
         result = run_huim(dataset_path, min_util=request.min_util, mode=request.mode)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except DatasetTooLargeError as e:
+        raise HTTPException(status_code=413, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"HUIM processing failed: {e}") from e
 

@@ -9,6 +9,7 @@ This implements the HUI-Miner algorithm using:
 Reference: Liu, M., Qu, J. (2012). Mining High Utility Itemsets without Candidate Generation.
 """
 
+import os
 import time
 from typing import List, Dict, Optional, Tuple
 from domain.models import Transaction, UtilityList, UtilityEntry
@@ -22,6 +23,17 @@ from domain.utility_functions import (
     should_explore_extensions,
     sort_items_by_twu,
 )
+
+
+class DatasetTooLargeError(Exception):
+    """
+    Raised when a dataset (or the MinUtil chosen for it) would require more
+    memory than this process can safely provide, instead of letting the
+    process OOM-crash. An uncaught OOM kill takes down the whole backend
+    (all in-flight requests), so callers should catch this and return a
+    normal error response.
+    """
+    pass
 
 
 class HUIMiner:
@@ -96,6 +108,25 @@ class HUIMiner:
             print("⚠️  Aucun item prometteur trouvé. Essayez un MinUtil plus bas.")
             return []
 
+        # ── GARDE-FOU MÉMOIRE ──
+        # Step 2 holds one UtilityList per promising item, each carrying an entry
+        # per transaction that item appears in — TWU-pruning alone can leave this
+        # unbounded if MinUtil is too low relative to dataset size (TWU accumulates
+        # over every transaction, so a threshold that prunes well at 100K rows may
+        # prune almost nothing at 500K+). Check before paying that memory cost.
+        occurrences = self._count_promising_occurrences(transactions, promising_items)
+        estimated_entries = sum(occurrences.values())
+        self._stats['estimated_utility_entries'] = estimated_entries
+        max_entries = int(os.environ.get('HUIM_MAX_UTILITY_ENTRIES', 2_000_000))
+        if estimated_entries > max_entries:
+            suggested_min_util = self._suggest_min_util(twu_map, occurrences, max_entries)
+            raise DatasetTooLargeError(
+                f"{len(promising_items)} items pass MinUtil={self.min_util}MRU, requiring "
+                f"~{estimated_entries:,} utility-list entries — exceeding the safety limit "
+                f"({max_entries:,}). Try a higher MinUtil (e.g. >= {suggested_min_util:.2f}MRU) "
+                f"to prune more items, or raise HUIM_MAX_UTILITY_ENTRIES if this host has more memory."
+            )
+
         # ── ÉTAPE 2: Construction des UtilityLists ──
         print("\n📋 Étape 2 — Construction des UtilityLists...")
         utility_lists = self._step2_build_utility_lists(
@@ -121,6 +152,38 @@ class HUIMiner:
     def get_stats(self) -> dict:
         """Return mining statistics."""
         return self._stats.copy()
+
+    def _count_promising_occurrences(
+        self,
+        transactions: List[Transaction],
+        promising_items: List[str]
+    ) -> Dict[str, int]:
+        """Count how many transactions each promising item appears in (cheap: no UtilityList allocation)."""
+        promising_set = set(promising_items)
+        counts = {name: 0 for name in promising_items}
+        for transaction in transactions:
+            for item in transaction.items:
+                if item.name in promising_set:
+                    counts[item.name] += 1
+        return counts
+
+    def _suggest_min_util(
+        self,
+        twu_map: Dict[str, float],
+        occurrences: Dict[str, int],
+        max_entries: int
+    ) -> float:
+        """Suggest a MinUtil that would keep total UtilityList entries under max_entries."""
+        import math
+        by_twu_desc = sorted(occurrences.keys(), key=lambda name: twu_map[name], reverse=True)
+        running = 0
+        for name in by_twu_desc:
+            running += occurrences[name]
+            if running > max_entries:
+                # filter_by_min_util keeps items with twu >= min_util, so the
+                # suggestion must be strictly above this item's TWU to exclude it.
+                return math.nextafter(twu_map[name], math.inf)
+        return self.min_util
 
     # ─────────────────────────────────────────────
     # STEP 1: TWU Computation
@@ -357,9 +420,34 @@ def run_huim(
 
     Returns:
         A JSON-serializable dict (see data_writer.results_to_dict).
+
+    Raises:
+        DatasetTooLargeError: if the file (or the promising-item set at the
+            given MinUtil) is large enough to risk exhausting memory on a
+            constrained host.
     """
-    from infrastructure.data_reader import load_transactions_local
     from infrastructure.data_writer import results_to_dict
+
+    if mode == "local" and spark_context is None:
+        # Disk-backed path: never materializes the full transaction list or
+        # per-item utility lists in memory. See core/streaming_miner.py.
+        from core.streaming_miner import run_huim_streaming
+        return run_huim_streaming(dataset_path, min_util)
+
+    # Spark mode (or a caller-supplied SparkContext): RDDs are already
+    # lazy/distributed, so this keeps the original in-memory-driver-side
+    # loading path rather than the local disk-backed pipeline above.
+    from infrastructure.data_reader import load_transactions_local
+
+    max_dataset_mb = float(os.environ.get("HUIM_MAX_DATASET_MB", 10))
+    file_size_mb = os.path.getsize(dataset_path) / (1024 * 1024)
+    if file_size_mb > max_dataset_mb:
+        raise DatasetTooLargeError(
+            f"Dataset is {file_size_mb:.1f}MB, exceeding the {max_dataset_mb:.0f}MB safety "
+            f"limit for this host's memory. Use a smaller dataset, run locally with more RAM "
+            f"(python main.py --data ...), or raise HUIM_MAX_DATASET_MB if this host has more "
+            f"memory available."
+        )
 
     transactions = load_transactions_local(dataset_path)
 

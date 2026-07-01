@@ -145,6 +145,11 @@ class UtilityList:
         """Human-readable name for the itemset."""
         return "{" + ", ".join(sorted(self.itemset)) + "}"
 
+    @property
+    def transaction_count(self) -> int:
+        """Number of transactions this itemset appears in."""
+        return len(self.entries)
+
     def is_high_utility(self, min_util: float) -> bool:
         """Returns True if this itemset is a High Utility Itemset."""
         return self.sum_iutils >= min_util
@@ -157,3 +162,22 @@ class UtilityList:
         return (f"UtilityList({self.itemset_name}, "
                 f"iutil={self.sum_iutils:.2f}MRU, rutil={self.sum_rutils:.2f}MRU, "
                 f"entries={len(self.entries)})")
+
+
+@dataclass
+class HUIRecord:
+    """
+    Lightweight summary of a discovered High Utility Itemset — used by the
+    disk-backed streaming miner (core/streaming_miner.py) in place of a full
+    UtilityList, since it never holds an itemset's per-transaction entries in
+    RAM (those live only transiently on disk during mining).
+    """
+    __slots__ = ("itemset", "sum_iutils", "transaction_count")
+
+    itemset: FrozenSet[str]
+    sum_iutils: float
+    transaction_count: int
+
+    @property
+    def itemset_name(self) -> str:
+        return "{" + ", ".join(sorted(self.itemset)) + "}"
