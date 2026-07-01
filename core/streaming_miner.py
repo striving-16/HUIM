@@ -6,9 +6,11 @@ Design: every pass over the dataset reads the file line-by-line and discards
 each parsed transaction immediately. Nothing that scales with the number of
 transactions is ever held in a Python list — only small aggregate maps
 (TWU per item, occurrence counts) live in RAM. Per-item utility-list entries
-are written to temp JSONL files on disk; DFS joins load at most two small
-per-item maps into memory at a time (the two operands being joined) and
-stream the third, writing the combined result straight to a new file.
+are written to temp binary files on disk (fixed-size records, not JSON —
+text parsing measured as the dominant CPU cost); the DFS/JOIN phase loads
+each promising item's entries into a small in-memory dict at most once per
+top-level branch and joins entirely in memory from there — no disk access
+below the top DFS level.
 
 core.huim_miner.HUIMiner.mine() (the original in-memory implementation,
 which the unit tests exercise directly with small in-memory transaction
@@ -17,9 +19,9 @@ end-to-end for disk-backed execution, and its output has been verified to
 match HUIMiner.mine() exactly on the same input.
 """
 
-import json
 import os
 import shutil
+import struct
 import tempfile
 import time
 from typing import Dict, List, Optional, Tuple
@@ -27,6 +29,14 @@ from typing import Dict, List, Optional, Tuple
 from domain.models import HUIRecord
 from domain.utility_functions import filter_by_min_util, sort_items_by_twu
 from infrastructure.data_reader import parse_transaction_line
+
+# Fixed-size binary record: transaction_id (int64) + item_utility, remaining_utility
+# (float64 each). Used instead of JSONL for the per-item utility-list files —
+# struct pack/unpack avoids per-record text formatting/parsing, which measured
+# as the dominant CPU cost of the streaming pipeline (46s+ for a 300K-row,
+# weakly-prunable dataset, most of it JSON overhead rather than disk I/O).
+_RECORD_FORMAT = "<qdd"
+_RECORD_SIZE = struct.calcsize(_RECORD_FORMAT)
 
 
 def compute_twu_streaming(filepath: str) -> Tuple[Dict[str, float], int]:
@@ -47,13 +57,13 @@ def compute_twu_streaming(filepath: str) -> Tuple[Dict[str, float], int]:
 def build_item_utility_files(filepath: str, promising_items: List[str], out_dir: str) -> Tuple[Dict[str, str], Dict[str, int]]:
     """
     Pass 2 (Step 2): stream the file once. For every promising item in a
-    transaction, append a {"tid","iu","ru"} JSONL entry to that item's own
-    temp file. Returns (item -> file path, item -> occurrence count).
+    transaction, append a fixed-size (tid, iu, ru) binary record to that
+    item's own temp file. Returns (item -> file path, item -> occurrence count).
     """
     promising_set = set(promising_items)
-    paths = {name: os.path.join(out_dir, f"item_{i}.jsonl") for i, name in enumerate(promising_items)}
+    paths = {name: os.path.join(out_dir, f"item_{i}.bin") for i, name in enumerate(promising_items)}
     counts = {name: 0 for name in promising_items}
-    handles = {name: open(path, 'w', encoding='utf-8') for name, path in paths.items()}
+    handles = {name: open(path, 'wb') for name, path in paths.items()}
 
     tid = 0
     try:
@@ -73,11 +83,7 @@ def build_item_utility_files(filepath: str, promising_items: List[str], out_dir:
                     suffix_sums[i] = suffix_sums[i + 1] + ordered[i].utility
 
                 for i, it in enumerate(ordered):
-                    handles[it.name].write(json.dumps({
-                        "tid": t.transaction_id,
-                        "iu": it.utility,
-                        "ru": suffix_sums[i + 1],
-                    }) + "\n")
+                    handles[it.name].write(struct.pack(_RECORD_FORMAT, t.transaction_id, it.utility, suffix_sums[i + 1]))
                     counts[it.name] += 1
     finally:
         for h in handles.values():
@@ -87,13 +93,10 @@ def build_item_utility_files(filepath: str, promising_items: List[str], out_dir:
 
 
 def load_item_dict(path: str) -> Dict[int, Tuple[float, float]]:
-    """Load one promising item's JSONL utility-list file into a small in-memory dict {tid: (iu, ru)}."""
-    entries: Dict[int, Tuple[float, float]] = {}
-    with open(path, 'r', encoding='utf-8') as f:
-        for line in f:
-            rec = json.loads(line)
-            entries[rec["tid"]] = (rec["iu"], rec["ru"])
-    return entries
+    """Load one promising item's binary utility-list file into a small in-memory dict {tid: (iu, ru)}."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    return {tid: (iu, ru) for tid, iu, ru in struct.iter_unpack(_RECORD_FORMAT, data)}
 
 
 def build_empty_ul_dict(entries: Dict[int, Tuple[float, float]]) -> Dict[int, Tuple[float, float]]:
