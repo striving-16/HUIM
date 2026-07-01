@@ -57,7 +57,13 @@ function setupDropZone() {
   const zone = $('drop-zone');
   const input = $('file-input');
 
-  zone.addEventListener('click', () => input.click());
+  zone.addEventListener('click', e => {
+    // The "Parcourir" <label for="file-input"> already opens the picker
+    // natively; re-triggering input.click() on its bubbled event double-fires
+    // it, which mobile browsers (iOS Safari, Android Chrome) often swallow.
+    if (e.target.closest('label')) return;
+    input.click();
+  });
   input.addEventListener('change', e => {
     if (e.target.files[0]) uploadFile(e.target.files[0]);
   });
