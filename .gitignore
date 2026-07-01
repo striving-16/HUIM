@@ -28,3 +28,10 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Large/generated datasets (keep only the small tracked example)
+data/large_dataset.txt
+data/large_dataset_100k.txt
+
+# Generated output
+results/

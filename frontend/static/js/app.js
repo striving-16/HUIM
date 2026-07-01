@@ -1,12 +1,16 @@
 /* ═══════════════════════════════════════════
    HUIM Dashboard — Frontend App
+   Talks only to the FastAPI backend (upload / run-huim / results).
+   No mining logic ever runs in the browser.
 ═══════════════════════════════════════════ */
 
 'use strict';
 
+const API_BASE = (window.HUIM_API_BASE || 'http://localhost:8000').replace(/\/$/, '');
+
 // ── State ──
 const state = {
-  selectedFile: null,
+  uploadedFilename: null,
   results: null,
   allItemsets: [],
   charts: {},
@@ -19,7 +23,7 @@ const $ = id => document.getElementById(id);
 // INIT
 // ═══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-  loadSampleDatasets();
+  $('api-base-display').textContent = API_BASE;
   setupDropZone();
   setupSlider();
   setupModeSelector();
@@ -28,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('run-btn').addEventListener('click', runMining);
   $('export-btn').addEventListener('click', exportCSV);
   $('clear-log-btn').addEventListener('click', clearLog);
+  loadLastResults();
 });
 
 // ═══════════════════════════════════════════
@@ -46,56 +51,7 @@ function setupNavigation() {
 }
 
 // ═══════════════════════════════════════════
-// SAMPLE DATASETS
-// ═══════════════════════════════════════════
-async function loadSampleDatasets() {
-  try {
-    const res = await fetch('/api/sample-datasets');
-    const datasets = await res.json();
-    const list = $('sample-list');
-    list.innerHTML = '';
-
-    if (datasets.length === 0) {
-      list.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Aucun dataset trouvé.</p>';
-      return;
-    }
-
-    datasets.forEach(ds => {
-      const item = document.createElement('div');
-      item.className = 'sample-item';
-      item.innerHTML = `
-        <div>
-          <div class="sample-name">📄 ${ds.name}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${ds.description}</div>
-        </div>
-        <div class="sample-meta">
-          <div>${ds.transactions} tickets</div>
-          <div>${ds.unique_items} produits</div>
-        </div>
-      `;
-      item.addEventListener('click', () => {
-        document.querySelectorAll('.sample-item').forEach(i => i.classList.remove('selected'));
-        item.classList.add('selected');
-        selectDataset(ds);
-      });
-      list.appendChild(item);
-    });
-  } catch (e) {
-    $('sample-list').innerHTML = '<p style="color:var(--red);font-size:13px">Erreur de chargement.</p>';
-  }
-}
-
-function selectDataset(ds) {
-  state.selectedFile = { path: ds.path, name: ds.name };
-  showDatasetInfo(ds.transactions, ds.unique_items, ds.name);
-  $('run-btn').disabled = false;
-  setStatus('ready', `Dataset: ${ds.name}`);
-  showToast(`✅ Dataset "${ds.name}" sélectionné`, 'success');
-  logLine(`Dataset chargé : ${ds.name} (${ds.transactions} transactions, ${ds.unique_items} produits)`, 'done');
-}
-
-// ═══════════════════════════════════════════
-// FILE UPLOAD / DROP ZONE
+// FILE UPLOAD / DROP ZONE  →  POST /upload
 // ═══════════════════════════════════════════
 function setupDropZone() {
   const zone = $('drop-zone');
@@ -128,66 +84,37 @@ async function uploadFile(file) {
   formData.append('file', file);
 
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: formData });
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      const text = await res.text().catch(() => `HTTP ${res.status}`);
-      showToast(`❌ Erreur serveur: ${res.status}`, 'error');
-      setStatus('error', 'Erreur serveur');
-      logLine(`Erreur serveur (${res.status}): ${text.slice(0, 200)}`, 'error');
-      return;
-    }
+    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+    const data = await res.json().catch(() => ({}));
 
-    if (data.error) {
-      showToast(`❌ ${data.error}`, 'error');
+    if (!res.ok) {
+      const detail = data.detail || `HTTP ${res.status}`;
+      showToast(`❌ ${detail}`, 'error');
       setStatus('error', 'Erreur upload');
+      logLine(`Erreur upload: ${detail}`, 'error');
       return;
     }
 
-    state.selectedFile = { path: data.path, name: data.filename };
-    showDatasetInfo(data.transactions, data.unique_items, data.filename, data.preview);
+    state.uploadedFilename = data.filename;
+    showDatasetInfo(data.filename, data.size_bytes);
     $('run-btn').disabled = false;
     setStatus('ready', `Fichier: ${data.filename}`);
     showToast(`✅ Fichier "${data.filename}" chargé`, 'success');
-    logLine(`Upload réussi : ${data.filename} — ${data.transactions} transactions, ${data.unique_items} produits`, 'done');
+    logLine(`Upload réussi : ${data.filename} (${data.size_bytes} octets)`, 'done');
 
   } catch (e) {
-    showToast('❌ Erreur réseau', 'error');
+    showToast('❌ Erreur réseau — le backend est-il démarré ?', 'error');
     setStatus('error', 'Erreur');
+    logLine(`Erreur réseau : ${e.message}`, 'error');
   }
 }
 
-// ═══════════════════════════════════════════
-// DATASET PREVIEW
-// ═══════════════════════════════════════════
-function showDatasetInfo(transactions, items, name, preview) {
+function showDatasetInfo(filename, sizeBytes) {
   const statsEl = $('dataset-stats');
   statsEl.innerHTML = `
-    <div class="dstat"><div class="dstat-val">${transactions}</div><div class="dstat-lbl">Transactions</div></div>
-    <div class="dstat"><div class="dstat-val">${items}</div><div class="dstat-lbl">Produits uniques</div></div>
-    <div class="dstat"><div class="dstat-val" style="color:var(--gold)">${name}</div><div class="dstat-lbl">Fichier actif</div></div>
+    <div class="dstat"><div class="dstat-val" style="color:var(--gold)">${filename}</div><div class="dstat-lbl">Fichier actif</div></div>
+    <div class="dstat"><div class="dstat-val">${(sizeBytes / 1024).toFixed(1)} KB</div><div class="dstat-lbl">Taille</div></div>
   `;
-
-  if (preview) {
-    const tbody = $('preview-table').querySelector('tbody');
-    tbody.innerHTML = '';
-    preview.forEach(t => {
-      const itemsHtml = t.items.map(i =>
-        `<span class="item-tag">${i.name} <span class="profit">+${i.profit} MRU</span></span>`
-      ).join('');
-      tbody.innerHTML += `
-        <tr>
-          <td><span class="rank-num">#${t.id}</span></td>
-          <td>${itemsHtml}</td>
-          <td><span class="utility-val">${t.total}MRU</span></td>
-        </tr>
-      `;
-    });
-    tbody.innerHTML += `<tr><td colspan="3" style="color:var(--text-dim);font-size:12px;padding:12px">… et ${transactions - preview.length} autres transactions</td></tr>`;
-  }
-
   $('preview-card').style.display = 'block';
 }
 
@@ -231,10 +158,10 @@ function getSelectedMode() {
 }
 
 // ═══════════════════════════════════════════
-// MINING
+// MINING  →  POST /run-huim
 // ═══════════════════════════════════════════
 async function runMining() {
-  if (!state.selectedFile) { showToast('⚠️ Sélectionnez un dataset d\'abord', 'info'); return; }
+  if (!state.uploadedFilename) { showToast("⚠️ Chargez un dataset d'abord", 'info'); return; }
 
   const minUtil = parseFloat($('min-util-input').value);
   const mode = getSelectedMode();
@@ -247,56 +174,37 @@ async function runMining() {
   $('results-content').style.display = 'none';
   $('mining-loading').style.display = 'flex';
   $('export-btn').style.display = 'none';
-  $('log-live').innerHTML = '';
 
   setStatus('running', 'Mining en cours…');
   logLine(`─── Mining démarré ───`, 'step');
-  logLine(`Mode: ${mode.toUpperCase()} | MinUtil: ${minUtil}MRU | Fichier: ${state.selectedFile.name}`, 'info');
+  logLine(`Mode: ${mode.toUpperCase()} | MinUtil: ${minUtil}MRU | Fichier: ${state.uploadedFilename}`, 'info');
 
   try {
-    const res = await fetch('/api/mine', {
+    const res = await fetch(`${API_BASE}/run-huim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filepath: state.selectedFile.path, min_util: minUtil, mode }),
+      body: JSON.stringify({ filename: state.uploadedFilename, min_util: minUtil, mode }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
-    if (data.error) {
-      showToast(`❌ ${data.error}`, 'error');
+    if (!res.ok) {
+      const detail = data.detail || `HTTP ${res.status}`;
+      showToast(`❌ ${detail}`, 'error');
       setStatus('error', 'Erreur mining');
-      logLine(`ERREUR: ${data.error}`, 'error');
+      logLine(`ERREUR: ${detail}`, 'error');
       resetRunBtn();
       $('mining-loading').style.display = 'none';
       $('results-empty').style.display = 'flex';
       return;
     }
 
-    // Show log lines
-    (data.log || []).forEach(line => {
-      const cls = line.includes('✨') ? 'hui' : line.includes('Étape') ? 'step' : line.includes('✅') ? 'done' : line.includes('⚠️') ? 'warn' : 'info';
-      logLine(line, cls);
-      addLiveLine(line, cls);
-    });
+    logLine(`─── Terminé en ${data.elapsed_seconds}s — ${data.huis_found} HUI trouvés ───`, 'done');
 
-    logLine(`─── Terminé en ${data.elapsed}s — ${data.itemsets.length} HUI trouvés ───`, 'done');
+    applyResults(data);
 
-    state.results = data;
-    state.allItemsets = data.itemsets;
+    setStatus('done', `${data.huis_found} HUI trouvés en ${data.elapsed_seconds}s`);
+    showToast(`✅ ${data.huis_found} itemsets trouvés en ${data.elapsed_seconds}s`, 'success');
 
-    // Show results
-    await new Promise(r => setTimeout(r, 400)); // brief delay for UX
-    $('mining-loading').style.display = 'none';
-    $('results-content').style.display = 'block';
-    if (data.itemsets.length > 0) $('export-btn').style.display = 'inline-flex';
-
-    renderKPIs(data);
-    renderCharts(data);
-    renderTable(data.itemsets);
-
-    setStatus('done', `${data.itemsets.length} HUI trouvés en ${data.elapsed}s`);
-    showToast(`✅ ${data.itemsets.length} itemsets trouvés en ${data.elapsed}s`, 'success');
-
-    // Scroll to results
     setTimeout(() => $('section-results').scrollIntoView({ behavior: 'smooth' }), 200);
 
   } catch (e) {
@@ -318,6 +226,34 @@ function resetRunBtn() {
 }
 
 // ═══════════════════════════════════════════
+// RESTORE LAST RESULT  →  GET /results
+// ═══════════════════════════════════════════
+async function loadLastResults() {
+  try {
+    const res = await fetch(`${API_BASE}/results`);
+    if (!res.ok) return; // nothing computed yet on this backend instance
+    const data = await res.json();
+    applyResults(data);
+    logLine('Derniers résultats restaurés depuis le backend (GET /results).', 'info');
+  } catch {
+    // backend unreachable at load time — silently ignore, upload/run will surface the error
+  }
+}
+
+function applyResults(data) {
+  state.results = data;
+  state.allItemsets = data.itemsets;
+
+  $('mining-loading').style.display = 'none';
+  $('results-content').style.display = 'block';
+  if (data.itemsets.length > 0) $('export-btn').style.display = 'inline-flex';
+
+  renderKPIs(data);
+  renderCharts(data);
+  renderTable(data.itemsets);
+}
+
+// ═══════════════════════════════════════════
 // KPIs
 // ═══════════════════════════════════════════
 function renderKPIs(data) {
@@ -325,7 +261,7 @@ function renderKPIs(data) {
   $('kpi-total').textContent = s.count || 0;
   $('kpi-max').textContent = s.max_utility ? s.max_utility.toFixed(2) + 'MRU' : '—';
   $('kpi-avg').textContent = s.avg_utility ? s.avg_utility.toFixed(2) + 'MRU' : '—';
-  $('kpi-time').textContent = data.elapsed + 's';
+  $('kpi-time').textContent = (data.elapsed_seconds ?? '—') + 's';
 }
 
 // ═══════════════════════════════════════════
@@ -339,7 +275,7 @@ function renderCharts(data) {
 function renderBarChart(itemsets) {
   if (state.charts.bar) state.charts.bar.destroy();
   const ctx = $('chart-bar').getContext('2d');
-  const labels = itemsets.map(i => i.name.replace(/{|}/g, ''));
+  const labels = itemsets.map(i => i.itemset_name.replace(/{|}/g, ''));
   const values = itemsets.map(i => i.utility);
 
   state.charts.bar = new Chart(ctx, {
@@ -434,7 +370,7 @@ function renderTable(itemsets) {
   const query = $('table-search').value.toLowerCase();
   const sort = $('table-sort').value;
 
-  let filtered = itemsets.filter(i => i.name.toLowerCase().includes(query));
+  let filtered = itemsets.filter(i => i.itemset_name.toLowerCase().includes(query));
 
   const [field, dir] = sort.split('-');
   filtered.sort((a, b) => {
@@ -447,7 +383,7 @@ function renderTable(itemsets) {
   $('results-count').textContent = filtered.length;
   $('results-tbody').innerHTML = filtered.map((item, idx) => {
     const chipClass = item.size === 1 ? 'single' : item.size === 2 ? 'pair' : 'large';
-    const chips = item.items.map(n => `<span class="chip ${chipClass}">${n}</span>`).join('');
+    const chips = item.itemset.map(n => `<span class="chip ${chipClass}">${n}</span>`).join('');
     const barWidth = Math.round((item.utility / maxUtil) * 100);
     return `
       <tr>
@@ -467,25 +403,21 @@ function renderTable(itemsets) {
 }
 
 // ═══════════════════════════════════════════
-// EXPORT
+// EXPORT (client-side CSV — no backend call, just formatting already-fetched data)
 // ═══════════════════════════════════════════
-async function exportCSV() {
+function exportCSV() {
   if (!state.results) return;
-  try {
-    const res = await fetch('/api/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemsets: state.results.itemsets }),
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'huim_results.csv'; a.click();
-    URL.revokeObjectURL(url);
-    showToast('✅ Résultats exportés', 'success');
-  } catch (e) {
-    showToast('❌ Erreur export', 'error');
-  }
+  const rows = [['Rang', 'Itemset', 'Utilite (MRU)', 'Taille', 'Transactions']];
+  state.results.itemsets.forEach((item, i) => {
+    rows.push([i + 1, item.itemset_name, item.utility, item.size, item.transactions]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'huim_results.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ Résultats exportés', 'success');
 }
 
 // ═══════════════════════════════════════════
@@ -498,15 +430,6 @@ function logLine(text, type = 'info') {
   div.textContent = text;
   terminal.appendChild(div);
   terminal.scrollTop = terminal.scrollHeight;
-}
-
-function addLiveLine(text, type = 'info') {
-  const live = $('log-live');
-  const div = document.createElement('div');
-  div.style.color = type === 'hui' ? 'var(--teal)' : type === 'done' ? '#7ee787' : 'var(--text-muted)';
-  div.textContent = text;
-  live.appendChild(div);
-  live.scrollTop = live.scrollHeight;
 }
 
 function clearLog() {

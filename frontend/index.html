@@ -35,7 +35,7 @@
 
     <div class="sidebar-info">
       <div class="info-badge">HUI-Miner</div>
-      <p>Algorithme basé sur les Utility-Lists avec élagage DFS</p>
+      <p>Frontend statique — le calcul se fait entièrement sur le backend Spark.</p>
     </div>
   </aside>
 
@@ -61,7 +61,7 @@
       <section id="section-data" class="section">
         <div class="section-header">
           <h2>Source de données</h2>
-          <span class="section-desc">Chargez vos tickets de caisse</span>
+          <span class="section-desc">Chargez vos tickets de caisse (jusqu'à 100 000 lignes)</span>
         </div>
 
         <div class="cards-row">
@@ -81,25 +81,21 @@
             </div>
           </div>
 
-          <!-- Samples Card -->
+          <!-- Backend status card -->
           <div class="card">
-            <div class="card-label">Datasets d'exemple</div>
-            <div id="sample-list" class="sample-list">
-              <div class="loading-pulse">Chargement…</div>
-            </div>
+            <div class="card-label">Backend API</div>
+            <p style="font-size:13px;color:var(--text-muted);line-height:1.6">
+              URL configurée : <code id="api-base-display" style="color:var(--teal)"></code><br><br>
+              Toute la fouille (mining) est exécutée côté serveur par Spark. Ce frontend ne fait
+              qu'envoyer le fichier et afficher les résultats reçus en JSON.
+            </p>
           </div>
         </div>
 
         <!-- Dataset Preview -->
         <div class="card" id="preview-card" style="display:none">
-          <div class="card-label">Aperçu du dataset chargé</div>
+          <div class="card-label">Fichier chargé</div>
           <div class="dataset-stats" id="dataset-stats"></div>
-          <div class="preview-table-wrap">
-            <table class="preview-table" id="preview-table">
-              <thead><tr><th>#</th><th>Articles</th><th>Utilité totale</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
         </div>
       </section>
 
@@ -165,8 +161,7 @@
         <!-- Loading state -->
         <div id="mining-loading" style="display:none" class="loading-state">
           <div class="spinner"></div>
-          <p>Mining en cours…</p>
-          <div class="log-live" id="log-live"></div>
+          <p>Mining en cours sur le backend Spark…</p>
         </div>
 
         <!-- Empty state -->
@@ -244,8 +239,8 @@
       <!-- ── SECTION 4: LOG ── -->
       <section id="section-log" class="section">
         <div class="section-header">
-          <h2>Log d'exécution</h2>
-          <span class="section-desc">Détail des étapes de l'algorithme</span>
+          <h2>Log</h2>
+          <span class="section-desc">Historique des appels au backend</span>
           <button class="btn btn-outline btn-sm" id="clear-log-btn">Effacer</button>
         </div>
         <div class="card">
@@ -261,6 +256,11 @@
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
+  <!-- Backend API base URL. Override at deploy time (e.g. Vercel env-injected
+       config.js, or edit directly) to point at your Railway backend URL. -->
+  <script>
+    window.HUIM_API_BASE = window.HUIM_API_BASE || "http://localhost:8000";
+  </script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

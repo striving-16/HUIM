@@ -1,5 +1,10 @@
 """
-main.py — Entry point for the HUIM on Spark project.
+main.py — Local testing entry point for the HUIM on Spark project.
+
+This file is NOT the production path. In production, the FastAPI backend
+(backend/app.py) calls core.huim_miner.run_huim() directly after a file
+upload. This script exists purely so you can exercise run_huim() from the
+command line while developing, without needing the backend running.
 
 Usage:
     python main.py                              # Run on sample data, local mode
@@ -10,20 +15,25 @@ Usage:
 
 import argparse
 import sys
-import time
 import os
+
+# core.huim_miner logs progress with emoji; on a non-UTF-8 console (e.g.
+# Windows cp1252) that raises UnicodeEncodeError instead of just printing
+# a '?'. Replace rather than crash.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="replace")
 
 # Make sure we can import from sibling directories
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from infrastructure.data_reader import load_transactions_local
-from infrastructure.data_writer import print_results, save_results_csv, save_results_txt, generate_summary_stats
-from core.huim_miner import HUIMiner
+from core.huim_miner import run_huim
+from infrastructure.data_writer import save_json_result, save_result_csv
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="HUIM on Spark — High Utility Itemset Mining",
+        description="HUIM on Spark — local test runner for run_huim()",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples:
@@ -63,78 +73,28 @@ Exemples:
     return parser.parse_args()
 
 
-def setup_spark(app_name: str = "HUIM-Spark"):
-    """Initialize a SparkContext for distributed mode."""
-    try:
-        from pyspark import SparkContext, SparkConf
-        conf = SparkConf() \
-            .setAppName(app_name) \
-            .setMaster("local[*]") \
-            .set("spark.driver.memory", "2g")
-        sc = SparkContext(conf=conf)
-        sc.setLogLevel("WARN")
-        print(f"✅ Spark initialisé — {sc.defaultParallelism} workers disponibles")
-        return sc
-    except ImportError:
-        print("❌ PySpark non trouvé. Installez-le avec : pip install pyspark")
-        print("   Passage en mode local...")
-        return None
-    except Exception as e:
-        print(f"❌ Erreur Spark : {e}")
-        print("   Passage en mode local...")
-        return None
+def print_summary(result: dict):
+    print("\n" + "═" * 60)
+    print("  🌟 RÉSULTATS — High Utility Itemsets Découverts")
+    print("═" * 60)
+    print(f"  Mode          : {result['mode']}")
+    print(f"  Seuil MinUtil : {result['min_util']}MRU")
+    if result['elapsed_seconds'] is not None:
+        print(f"  Temps d'exécution : {result['elapsed_seconds']}s")
+    print(f"  Nombre de HUI trouvés : {result['huis_found']}")
+    print("─" * 60)
 
+    if not result['itemsets']:
+        print("  Aucun itemset trouvé au-dessus du seuil.")
+    else:
+        print(f"  {'Itemset':<35} {'Utilité (MRU)':>12}")
+        print("─" * 60)
+        for item in result['itemsets']:
+            print(f"  {item['itemset_name']:<35} {item['utility']:>12.2f}MRU")
 
-def main():
-    args = parse_args()
+    print("═" * 60 + "\n")
 
-    print("╔══════════════════════════════════════════════════════╗")
-    print("║         HUIM on Spark — Mining démarré              ║")
-    print("╚══════════════════════════════════════════════════════╝")
-
-    # ── Setup Spark if needed ──
-    sc = None
-    mode = args.mode
-    if mode == 'spark':
-        sc = setup_spark()
-        if sc is None:
-            mode = 'local'
-            print("   ⚠️  Basculement en mode LOCAL\n")
-
-    # ── Load Data ──
-    print(f"\n📂 Chargement des données depuis : {args.data}")
-    try:
-        transactions = load_transactions_local(args.data)
-    except FileNotFoundError as e:
-        print(f"❌ {e}")
-        sys.exit(1)
-
-    if not transactions:
-        print("❌ Aucune transaction trouvée dans le fichier.")
-        sys.exit(1)
-
-    # ── Run HUIM Mining ──
-    miner = HUIMiner(
-        min_util=args.min_util,
-        mode=mode,
-        spark_context=sc
-    )
-
-    start = time.time()
-    results = miner.mine(transactions)
-    elapsed = time.time() - start
-
-    # ── Display Results ──
-    print_results(results, args.min_util, elapsed)
-
-    # ── Save Results ──
-    if not args.no_save and results:
-        os.makedirs(args.output, exist_ok=True)
-        save_results_csv(results, os.path.join(args.output, 'results.csv'), args.min_util)
-        save_results_txt(results, os.path.join(args.output, 'report.txt'), args.min_util, elapsed)
-
-    # ── Summary Stats ──
-    stats = generate_summary_stats(results)
+    stats = result['stats']
     if stats.get('count', 0) > 0:
         print("📈 Statistiques:")
         print(f"   Items seuls  : {stats['single_items']}")
@@ -143,10 +103,28 @@ def main():
         print(f"   Utilité max  : {stats['max_utility']:.2f}MRU")
         print(f"   Utilité moy  : {stats['avg_utility']:.2f}MRU")
 
-    # ── Stop Spark ──
-    if sc is not None:
-        sc.stop()
-        print("\n✅ Spark arrêté.")
+
+def main():
+    args = parse_args()
+
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║         HUIM on Spark — Mining démarré              ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print(f"\n📂 Chargement des données depuis : {args.data}")
+
+    try:
+        result = run_huim(args.data, min_util=args.min_util, mode=args.mode)
+    except FileNotFoundError as e:
+        print(f"❌ {e}")
+        sys.exit(1)
+
+    print_summary(result)
+
+    if not args.no_save:
+        os.makedirs(args.output, exist_ok=True)
+        save_json_result(result, os.path.join(args.output, 'results.json'))
+        if result['itemsets']:
+            save_result_csv(result, os.path.join(args.output, 'results.csv'))
 
     print("\n✨ Mining terminé avec succès!\n")
 

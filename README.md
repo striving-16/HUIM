@@ -19,15 +19,22 @@ huim-spark/
 │   ├── data_reader.py       # Lecture des fichiers, RDD Spark
 │   └── data_writer.py       # Export CSV, TXT, console
 │
+├── backend/                 # API FastAPI (déployée sur Render)
+│   └── app.py                # /upload, /run-huim, /results
+│
+├── frontend/                 # Dashboard statique (déployé sur Vercel)
+│   ├── index.html
+│   └── static/{css,js}/
+│
 ├── data/
-│   ├── sample.txt           # 4 tickets (exemple du document PDF)
-│   └── large_dataset.txt    # Dataset plus grand pour les tests perf
+│   ├── sample.txt              # 4 tickets (exemple du document PDF), suivi par git
+│   └── large_dataset_100k.txt  # Dataset 100K lignes pour les tests perf (ignoré par git)
 │
 ├── tests/
 │   └── test_huim.py         # Tests unitaires et end-to-end
 │
-├── results/                 # Dossier de sortie (créé automatiquement)
-├── main.py                  # Point d'entrée principal
+├── results/                 # Dossier de sortie (créé automatiquement, ignoré par git)
+├── main.py                  # Point d'entrée CLI (local, hors production)
 ├── requirements.txt
 └── README.md
 ```
@@ -214,21 +221,59 @@ python main.py --data data/mon_dataset.txt --min-util 50
 
 ---
 
-## 🌐 Interface Web (Dashboard)
+## 🌐 Interface Web (Backend + Frontend)
 
-### Lancer le dashboard
+Architecture en production :
 
-```bash
-python web/app.py
+```
+Frontend (Vercel, statique) → Backend FastAPI (Render) → HUIM-Miner (Spark local) → JSON → Frontend
 ```
 
-Ouvrir dans le navigateur : **http://localhost:5000**
+### Lancer en local
+
+```bash
+# Terminal 1 — backend FastAPI
+uvicorn backend.app:app --reload --port 8000
+
+# Terminal 2 — frontend (ouvre simplement le fichier, ou sers-le avec un serveur statique)
+# frontend/index.html pointe par défaut sur http://localhost:8000
+```
+
+Ouvrir `frontend/index.html` dans le navigateur.
 
 ### Fonctionnalités du dashboard
 
-- **📂 Données** — Charger un fichier drag & drop ou choisir un dataset d'exemple
+- **📂 Données** — Charger un fichier par drag & drop (`POST /upload`)
 - **⚙️ Configuration** — Régler MinUtil avec un slider, choisir le mode Local ou Spark
 - **🌟 Résultats** — Tableaux triables/filtrables, graphiques interactifs (bar + donut), KPIs
 - **📋 Log** — Détail complet de l'exécution de l'algorithme
 - **⬇ Export** — Télécharger les résultats en CSV
+
+---
+
+## 🚀 Déploiement
+
+### 1. GitHub
+
+```bash
+git add -A
+git commit -m "..."
+git push origin master
+```
+
+### 2. Backend sur Render
+
+1. New **Web Service** → connecter le repo GitHub
+2. Build Command : `pip install -r requirements.txt`
+3. Start Command : `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
+4. Variable d'environnement `ALLOWED_ORIGINS` = l'URL Vercel du frontend (une fois connue)
+
+⚠️ Limites du plan gratuit Render : le service s'endort après une période d'inactivité
+(cold start de quelques dizaines de secondes au réveil).
+
+### 3. Frontend sur Vercel
+
+1. Importer le même repo GitHub — `vercel.json` sert déjà `frontend/` en statique, aucune étape de build.
+2. Une fois le backend Render en ligne, éditer la ligne `window.HUIM_API_BASE` dans
+   `frontend/index.html` avec l'URL Render (`https://<service>.onrender.com`), puis redéployer.
 

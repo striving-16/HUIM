@@ -4,8 +4,10 @@ Handles loading transactions from files, both locally and via Spark RDDs.
 """
 
 import os
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 from domain.models import Item, Transaction
+
+PathLike = Union[str, os.PathLike]
 
 
 # ─────────────────────────────────────────────
@@ -72,13 +74,21 @@ def parse_transaction_line(line: str, transaction_id: int) -> Optional[Transacti
     )
 
 
-def load_transactions_local(filepath: str) -> List[Transaction]:
+def load_transactions_local(filepath: PathLike) -> List[Transaction]:
     """
     Load all transactions from a file using pure Python (no Spark).
     Used for small datasets, testing, and the DFS phase.
+
+    `filepath` is resolved dynamically at call time — the caller (main.py,
+    the FastAPI backend, tests, ...) decides which file to load. There is
+    no hardcoded dataset path anywhere in this module.
     """
+    filepath = os.fspath(filepath)
+
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Dataset file not found: {filepath}")
+        raise FileNotFoundError(f"Dataset file not found: {os.path.abspath(filepath)}")
+    if not os.path.isfile(filepath):
+        raise ValueError(f"Dataset path is not a file: {os.path.abspath(filepath)}")
 
     transactions = []
     tid = 0
@@ -98,7 +108,7 @@ def load_transactions_local(filepath: str) -> List[Transaction]:
 # Spark RDD-based Loading
 # ─────────────────────────────────────────────
 
-def load_transactions_spark(filepath: str, sc) -> 'RDD':
+def load_transactions_spark(filepath: PathLike, sc) -> 'RDD':
     """
     Load transactions as a Spark RDD for distributed processing.
 
@@ -106,10 +116,10 @@ def load_transactions_spark(filepath: str, sc) -> 'RDD':
     This enables parallel TWU computation in Step 1.
 
     Args:
-        filepath: path to the dataset file
+        filepath: path to the dataset file (dynamic, no hardcoding)
         sc: SparkContext instance
     """
-    raw_rdd = sc.textFile(filepath)
+    raw_rdd = sc.textFile(os.fspath(filepath))
 
     # Filter comments and empty lines, then parse
     # We use zipWithIndex to assign transaction IDs

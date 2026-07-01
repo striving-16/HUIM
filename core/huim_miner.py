@@ -300,3 +300,91 @@ class HUIMiner:
             for e in ul_item.entries
         ]
         return UtilityList(itemset=frozenset(), entries=entries)
+
+
+# ─────────────────────────────────────────────
+# EXTERNAL ENTRY POINT — for main.py and the FastAPI backend
+# ─────────────────────────────────────────────
+
+def _create_spark_context(app_name: str = "HUIM-Spark"):
+    """
+    Create a local SparkContext. Returns None (never raises) if PySpark
+    isn't installed or the JVM can't be started, so callers can fall back
+    to local mode instead of crashing a backend request.
+    """
+    try:
+        from pyspark import SparkContext, SparkConf
+        conf = (
+            SparkConf()
+            .setAppName(app_name)
+            .setMaster("local[*]")
+            .set("spark.driver.memory", "2g")
+        )
+        sc = SparkContext(conf=conf)
+        sc.setLogLevel("WARN")
+        return sc
+    except Exception as e:
+        print(f"⚠️  Spark indisponible ({e}) — passage en mode local.")
+        return None
+
+
+def run_huim(
+    dataset_path: str,
+    min_util: float = 5.0,
+    mode: str = "local",
+    spark_context=None,
+) -> dict:
+    """
+    Callable entry point for running HUI-Miner on a dataset file.
+
+    This is the single function external callers (main.py, the FastAPI
+    backend) should use — it wires together data_reader (loading),
+    HUIMiner (mining), and data_writer (JSON serialization) without any
+    of them needing to know about each other.
+
+    Does nothing on import; only runs when explicitly called.
+
+    Args:
+        dataset_path: path to a transaction file (dynamic — no hardcoding).
+        min_util: MinUtil threshold in MRU.
+        mode: 'local' or 'spark'.
+        spark_context: optional pre-existing SparkContext. If omitted and
+            mode='spark', a context is created and torn down internally.
+
+    Returns:
+        A JSON-serializable dict (see data_writer.results_to_dict).
+    """
+    from infrastructure.data_reader import load_transactions_local
+    from infrastructure.data_writer import results_to_dict
+
+    transactions = load_transactions_local(dataset_path)
+
+    owns_spark_context = False
+    sc = spark_context
+    if mode == "spark" and sc is None:
+        sc = _create_spark_context()
+        owns_spark_context = sc is not None
+        if sc is None:
+            mode = "local"
+
+    if not transactions:
+        return results_to_dict([], min_util, 0.0, total_transactions=0, mode=mode)
+
+    start_time = time.time()
+    try:
+        miner = HUIMiner(min_util=min_util, mode=mode, spark_context=sc)
+        results = miner.mine(transactions)
+        algorithm_stats = miner.get_stats()
+    finally:
+        if owns_spark_context and sc is not None:
+            sc.stop()
+    elapsed = time.time() - start_time
+
+    return results_to_dict(
+        results,
+        min_util,
+        elapsed,
+        total_transactions=len(transactions),
+        mode=mode,
+        algorithm_stats=algorithm_stats,
+    )

@@ -5,7 +5,8 @@ Handles writing HUI results to console, CSV, and text files.
 
 import os
 import csv
-from typing import List, Tuple
+import json
+from typing import List, Tuple, Optional
 from datetime import datetime
 from domain.models import UtilityList
 
@@ -107,3 +108,71 @@ def generate_summary_stats(results: List[UtilityList]) -> dict:
         "pairs": sum(1 for s in sizes if s == 2),
         "larger": sum(1 for s in sizes if s > 2),
     }
+
+
+# ─────────────────────────────────────────────
+# JSON Output — used by run_huim() for the FastAPI backend
+# ─────────────────────────────────────────────
+
+def results_to_dict(
+    results: List[UtilityList],
+    min_util: float,
+    elapsed_time: Optional[float] = None,
+    total_transactions: Optional[int] = None,
+    mode: str = "local",
+    algorithm_stats: Optional[dict] = None,
+) -> dict:
+    """
+    Convert mining results into a plain, JSON-serializable dict.
+
+    This is the shape returned by core.huim_miner.run_huim() and served
+    directly by the FastAPI backend's /run-huim and /results endpoints —
+    no UtilityList/Item/Transaction objects ever leave this boundary.
+    """
+    sorted_results = sorted(results, key=lambda ul: ul.sum_iutils, reverse=True)
+
+    itemsets = [
+        {
+            "itemset": sorted(ul.itemset),
+            "itemset_name": ul.itemset_name,
+            "utility": round(ul.sum_iutils, 4),
+            "size": len(ul.itemset),
+            "transactions": len(ul.entries),
+        }
+        for ul in sorted_results
+    ]
+
+    return {
+        "success": True,
+        "mode": mode,
+        "min_util": min_util,
+        "elapsed_seconds": round(elapsed_time, 4) if elapsed_time is not None else None,
+        "total_transactions": total_transactions,
+        "huis_found": len(results),
+        "itemsets": itemsets,
+        "stats": generate_summary_stats(results),
+        "algorithm_stats": algorithm_stats or {},
+    }
+
+
+def save_json_result(result: dict, output_path: str) -> None:
+    """Persist a results dict (as returned by results_to_dict) to a .json file."""
+    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    print(f"💾 Résultats JSON sauvegardés dans : {output_path}")
+
+
+def save_result_csv(result: dict, output_path: str) -> None:
+    """Save a results dict (as returned by results_to_dict) as CSV."""
+    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
+
+    with open(output_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['itemset', 'utility_mru', 'size', 'transactions'])
+        for item in result['itemsets']:
+            writer.writerow([item['itemset_name'], item['utility'], item['size'], item['transactions']])
+
+    print(f"💾 Résultats CSV sauvegardés dans : {output_path}")
