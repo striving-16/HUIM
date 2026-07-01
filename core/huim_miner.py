@@ -313,12 +313,16 @@ def _create_spark_context(app_name: str = "HUIM-Spark"):
     to local mode instead of crashing a backend request.
     """
     try:
+        import os
         from pyspark import SparkContext, SparkConf
+        # Default kept low enough to fit inside constrained containers (e.g. Render's
+        # 512MB free tier); override with SPARK_DRIVER_MEMORY on hosts with more RAM.
+        driver_memory = os.environ.get("SPARK_DRIVER_MEMORY", "256m")
         conf = (
             SparkConf()
             .setAppName(app_name)
             .setMaster("local[*]")
-            .set("spark.driver.memory", "2g")
+            .set("spark.driver.memory", driver_memory)
         )
         sc = SparkContext(conf=conf)
         sc.setLogLevel("WARN")

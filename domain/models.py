@@ -10,6 +10,8 @@ from typing import List, Dict, Optional, FrozenSet
 @dataclass
 class Item:
     """Represents a single product with its profit in a transaction."""
+    __slots__ = ("name", "quantity", "profit")
+
     name: str
     quantity: int
     profit: float  # profit per unit
@@ -35,6 +37,8 @@ class Transaction:
     Represents a single receipt (ticket de caisse).
     Contains a list of items and the total transaction utility.
     """
+    __slots__ = ("transaction_id", "items", "total_utility")
+
     transaction_id: int
     items: List[Item]
     total_utility: float  # sum of all item utilities in this transaction
@@ -92,6 +96,8 @@ class UtilityEntry:
     Tracks how much utility an itemset contributes in one specific transaction,
     and how much 'remaining utility' exists after it in that transaction.
     """
+    __slots__ = ("transaction_id", "item_utility", "remaining_utility")
+
     transaction_id: int
     item_utility: float      # utility of the itemset in this transaction
     remaining_utility: float  # utility of items after this itemset in the transaction
