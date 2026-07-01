@@ -378,9 +378,14 @@ def _create_spark_context(app_name: str = "HUIM-Spark"):
     try:
         import os
         from pyspark import SparkContext, SparkConf
-        # Default kept low enough to fit inside constrained containers (e.g. Render's
-        # 512MB free tier); override with SPARK_DRIVER_MEMORY on hosts with more RAM.
-        driver_memory = os.environ.get("SPARK_DRIVER_MEMORY", "256m")
+        # Spark refuses to initialize below ~450MB regardless of this setting
+        # (SparkIllegalArgumentException: System memory ... must be at least
+        # 471859200), so anything less just guarantees Spark always fails to
+        # start. 512m is the practical floor — meaning Spark mode inherently
+        # doesn't fit a 512MB-constrained host like Render's free tier at all;
+        # run_huim() correctly falls back to the disk-backed streaming path
+        # there. Override with SPARK_DRIVER_MEMORY on hosts with more RAM.
+        driver_memory = os.environ.get("SPARK_DRIVER_MEMORY", "512m")
         conf = (
             SparkConf()
             .setAppName(app_name)
@@ -428,36 +433,42 @@ def run_huim(
     """
     from infrastructure.data_writer import results_to_dict
 
-    if mode == "local" and spark_context is None:
+    owns_spark_context = False
+    sc = spark_context
+    if mode == "spark" and sc is None:
+        # Attempt Spark first — on hosts without a JVM (e.g. Render's default
+        # Python container), this fails and falls back to local. Deciding the
+        # memory-safety path (below) BEFORE knowing this would wrongly apply
+        # Spark's stricter in-memory limit to what's actually a local run.
+        sc = _create_spark_context()
+        owns_spark_context = sc is not None
+        if sc is None:
+            mode = "local"
+
+    if mode == "local" and sc is None:
         # Disk-backed path: never materializes the full transaction list or
         # per-item utility lists in memory. See core/streaming_miner.py.
         from core.streaming_miner import run_huim_streaming
         return run_huim_streaming(dataset_path, min_util)
 
-    # Spark mode (or a caller-supplied SparkContext): RDDs are already
-    # lazy/distributed, so this keeps the original in-memory-driver-side
-    # loading path rather than the local disk-backed pipeline above.
+    # A Spark context genuinely started: RDDs are lazy/distributed, but the
+    # driver still needs the full transaction list resident to parallelize it,
+    # so keep the stricter in-memory-driver-side loading path for this case.
     from infrastructure.data_reader import load_transactions_local
 
-    max_dataset_mb = float(os.environ.get("HUIM_MAX_DATASET_MB", 10))
+    max_dataset_mb = float(os.environ.get("HUIM_MAX_SPARK_DATASET_MB", 10))
     file_size_mb = os.path.getsize(dataset_path) / (1024 * 1024)
     if file_size_mb > max_dataset_mb:
+        if owns_spark_context:
+            sc.stop()
         raise DatasetTooLargeError(
             f"Dataset is {file_size_mb:.1f}MB, exceeding the {max_dataset_mb:.0f}MB safety "
-            f"limit for this host's memory. Use a smaller dataset, run locally with more RAM "
-            f"(python main.py --data ...), or raise HUIM_MAX_DATASET_MB if this host has more "
-            f"memory available."
+            f"limit for Spark mode on this host's memory. Use a smaller dataset, use local "
+            f"mode instead, or raise HUIM_MAX_SPARK_DATASET_MB if this host has more memory "
+            f"available."
         )
 
     transactions = load_transactions_local(dataset_path)
-
-    owns_spark_context = False
-    sc = spark_context
-    if mode == "spark" and sc is None:
-        sc = _create_spark_context()
-        owns_spark_context = sc is not None
-        if sc is None:
-            mode = "local"
 
     if not transactions:
         return results_to_dict([], min_util, 0.0, total_transactions=0, mode=mode)
